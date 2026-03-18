@@ -732,6 +732,8 @@ error:
 }
 #endif
 
+static void esp_http_client_cached_buf_cleanup(esp_http_buffer_t *res_buffer); // Forward declaration
+
 esp_err_t esp_http_client_prepare(esp_http_client_handle_t client)
 {
     if (client == NULL) {
@@ -742,6 +744,12 @@ esp_err_t esp_http_client_prepare(esp_http_client_handle_t client)
     client->process_again = 0;
     client->response->data_process = 0;
     client->first_line_prepared = false;
+
+    // Reset the response buffer before each new request to ensure raw_data == orig_raw_data.
+    esp_http_client_cached_buf_cleanup(client->response->buffer);
+    // Also unconditionally reset raw_len.
+    client->response->buffer->raw_len = 0;
+    
     /**
      * Clear location field before making a new HTTP request. Location
      * field should not be cleared in http_on_header* callbacks because
