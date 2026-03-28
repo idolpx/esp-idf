@@ -579,14 +579,20 @@ macro(idf_project_init)
         # Discover and initialize components
         __init_components()
 
-        # Save original sdkconfig before kconfgen may drop unknown options
+        # Save original sdkconfig before kconfgen may drop unknown options.
+        # Only creates a backup when the component manager is enabled.
         __create_sdkconfig_orig_copy()
 
         # Generate initial sdkconfig with discovered components
         __generate_sdkconfig()
 
-        # Initialize the component manager and fetch components in a loop
-        __fetch_components_from_registry()
+        # Fetch managed components from registry if the component manager is enabled
+        idf_build_get_property(idf_component_manager IDF_COMPONENT_MANAGER)
+        if(idf_component_manager EQUAL 1)
+            __fetch_components_from_registry()
+        else()
+            __component_manager_warn_if_disabled_and_manifests_exist()
+        endif()
 
         # Include sdkconfig.cmake
         idf_build_get_property(sdkconfig_cmake __SDKCONFIG_CMAKE)
@@ -603,6 +609,15 @@ macro(idf_project_init)
         # Initialize the target architecture based on the configuration
         # Ensure this is done after including the sdkconfig.
         __init_idf_target_arch()
+
+        # Make build properties available as CMake variables for backward
+        # compatibility with project_include.cmake files (e.g. ULP component
+        # references ${SDKCONFIG_HEADER} and ${SDKCONFIG_CMAKE} directly).
+        idf_build_get_property(build_properties BUILD_PROPERTIES)
+        foreach(build_property IN LISTS build_properties)
+            idf_build_get_property(val ${build_property})
+            set(${build_property} "${val}")
+        endforeach()
 
         # Include all project_include.cmake files for the components that have
         # been discovered.
@@ -732,7 +747,8 @@ function(__project_default)
                              TARGET app-flash
                              NAME "app"
                              FLASH)
-            idf_build_generate_metadata(BINARY "${executable}_binary_signed")
+            idf_build_generate_metadata(BINARY "${executable}_binary_signed"
+                                        HINTS_OUTPUT_FILE "${BUILD_DIR}/hints.yml")
         else()
             idf_build_binary("${executable}"
                              OUTPUT_FILE "${build_dir}/${executable}.bin"
@@ -749,12 +765,14 @@ function(__project_default)
 
             idf_create_dfu("${executable}_binary"
                            TARGET dfu)
-            idf_build_generate_metadata(BINARY "${executable}_binary")
+            idf_build_generate_metadata(BINARY "${executable}_binary"
+                                        HINTS_OUTPUT_FILE "${BUILD_DIR}/hints.yml")
         endif()
 
         idf_build_generate_flasher_args()
     else()
-        idf_build_generate_metadata(EXECUTABLE "${executable}")
+        idf_build_generate_metadata(EXECUTABLE "${executable}"
+                                    HINTS_OUTPUT_FILE "${BUILD_DIR}/hints.yml")
     endif()
 
     idf_create_menuconfig("${executable}"
@@ -799,6 +817,11 @@ endfunction()
 #]]
 macro(idf_project_default)
     idf_project_init()
+
+    # Use DEFERRED optional-requires resolution only when this will be the sole
+    # library being built.
+    idf_build_set_property(IDF_COMPONENT_OPTIONAL_REQUIRES_MODE DEFERRED)
+
     # Only the idf_project_init macro needs be called within the global scope,
     # as it includes the project_include.cmake files and the cmake version of
     # the configuration. The remaining functionality of the idf_project_default

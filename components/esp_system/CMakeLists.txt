@@ -37,15 +37,19 @@ else()
             "esp_ipc.c"
             "esp_err.c"
             "freertos_hooks.c"
-            "int_wdt.c"
             "panic.c"
             "esp_system.c"
             "startup.c"
             "startup_funcs.c"
             "system_time.c"
             "stack_check.c"
-            "ubsan.c"
-            "xt_wdt.c")
+            "ubsan.c")
+    if(CONFIG_SOC_WDT_SUPPORTED)
+        list(APPEND srcs "int_wdt.c")
+    endif()
+    if(CONFIG_SOC_XT_WDT_SUPPORTED)
+        list(APPEND srcs "xt_wdt.c")
+    endif()
 
     if(CONFIG_ESP_TASK_WDT_EN)
         list(APPEND srcs "task_wdt/task_wdt.c")
@@ -147,10 +151,6 @@ endif()
 
 if(CONFIG_VFS_SUPPORT_IO)
     idf_component_optional_requires(PRIVATE vfs)
-endif()
-
-if(CONFIG_SW_COEXIST_ENABLE OR CONFIG_EXTERNAL_COEX_ENABLE)
-    idf_component_optional_requires(PRIVATE esp_coex)
 endif()
 
 if(NOT BOOTLOADER_BUILD)

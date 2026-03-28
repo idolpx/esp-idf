@@ -107,6 +107,7 @@
 #define SOC_CLK_TREE_SUPPORTED      1
 #define SOC_MPU_SUPPORTED           1
 #define SOC_WDT_SUPPORTED           1
+#define SOC_RTC_WDT_SUPPORTED       1
 #define SOC_SPI_FLASH_SUPPORTED     1
 #define SOC_RNG_SUPPORTED           1
 #define SOC_LIGHT_SLEEP_SUPPORTED   1
@@ -181,6 +182,10 @@
 // ESP32 has 1 GPIO peripheral
 #define SOC_GPIO_PORT                   (1U)
 #define SOC_GPIO_PIN_COUNT              40
+
+#define SOC_GPIO_SUPPORT_HP_PERIPH_PD_SLEEP_WAKEUP      (1)
+#define SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP               SOC_GPIO_SUPPORT_HP_PERIPH_PD_SLEEP_WAKEUP
+#define SOC_GPIO_HP_PERIPH_PD_SLEEP_WAKEABLE_MASK       (0ULL | BIT0 | BIT2 | BIT4 | BIT12 | BIT13 | BIT14 | BIT15 | BIT25 | BIT26 | BIT27 | BIT32 | BIT33 | BIT34 | BIT35 | BIT36 | BIT37 | BIT38 | BIT39)
 
 // 0~39 valid except 24, 28~31
 #define SOC_GPIO_VALID_GPIO_MASK        (0xFFFFFFFFFFULL & ~(0ULL | BIT24 | BIT28 | BIT29 | BIT30 | BIT31))
@@ -353,6 +358,9 @@
 
 #define SOC_CONFIGURABLE_VDDSDIO_SUPPORTED        (1)
 #define SOC_PM_MODEM_PD_BY_SW                     (1)
+
+#define SOC_PM_RTC_NOT_SUPPORT_UART2_WAKEUP       (1)
+
 /*-------------------------- CLOCK SUBSYSTEM CAPS ----------------------------------------*/
 #define SOC_CLK_APLL_SUPPORTED                    (1)
 
@@ -397,3 +405,4 @@
 
 /*--------------------------- EMAC --------------------------------*/
 #define SOC_EMAC_RMII_CLK_OUT_INTERNAL_LOOPBACK     (1) /*!< REF RMII CLK output is looped back internally */
+#define SOC_EMAC_REF_CLK_FROM_APLL                 (1)      /*!< RMII REF CLK can use APLL as internal clock source */

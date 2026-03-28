@@ -113,6 +113,32 @@ function(__dump_build_properties)
 endfunction()
 
 #[[
+    __idf_build_dispatch_build_event(<event> <target>)
+
+    *event[in]*
+
+        Build event name. Currently only ``POST_ELF`` is supported. Other build
+        events may be extended when required.
+
+    *target[in]*
+
+        Name of the primary CMake target at this event point. Passed as the
+        sole argument to every registered callback so that callbacks can
+        operate on the correct target without querying build properties.
+        For ``POST_ELF`` this is the executable target name.
+
+    Internal dispatcher called by the build system at well-defined lifecycle
+    points. Invokes every CMake function registered for
+    ``event`` via ``idf_component_register_build_event_callback``.
+#]]
+function(__idf_build_dispatch_build_event event target)
+    idf_build_get_property(callbacks "__BUILD_EVENT_CALLBACKS_${event}")
+    foreach(cb IN LISTS callbacks)
+        cmake_language(CALL "${cb}" "${target}")
+    endforeach()
+endfunction()
+
+#[[
     __get_library_interface_or_die(LIBRARY <library>
                                    OUTPUT <variable>)
 
@@ -335,6 +361,12 @@ function(idf_build_library library)
         idf_component_get_property(component_interface "${component_name}" COMPONENT_INTERFACE)
         target_link_libraries("${library}" INTERFACE "${component_interface}")
     endforeach()
+
+    # Process optional requirements in DEFERRED mode only (no-op in IMMEDIATE or when unset).
+    idf_build_get_property(opt_req_mode IDF_COMPONENT_OPTIONAL_REQUIRES_MODE)
+    if("${opt_req_mode}" STREQUAL "DEFERRED")
+        __idf_component_process_optional_requires()
+    endif()
 
     # Get all targets transitively linked to the library interface target.
     __get_target_dependencies(TARGET "${library}" OUTPUT dependencies)
@@ -610,6 +642,9 @@ function(idf_build_executable executable)
     endif()
 
     set_target_properties(${executable} PROPERTIES LIBRARY_INTERFACE ${library})
+
+    # Dispatch POST_ELF event once the executable target exists
+    __idf_build_dispatch_build_event(POST_ELF "${executable}")
 endfunction()
 
 #[[
@@ -719,7 +754,8 @@ endfunction()
 
         idf_build_generate_metadata([BINARY <binary>]
                                     [EXECUTABLE <executable>]
-                                    [OUTPUT_FILE <file>])
+                                    [OUTPUT_FILE <file>]
+                                    [HINTS_OUTPUT_FILE <file>])
 
     *BINARY[in,opt]*
 
@@ -734,6 +770,13 @@ endfunction()
         Optional output file path for storing the metadata. If not provided,
         the default path ``<build>/project_description.json`` is used.
 
+    *HINTS_OUTPUT_FILE[in,opt]*
+
+        Optional output file path for storing the merged hints YAML file. If
+        not provided, hints generation is skipped entirely. This opt-in
+        behaviour prevents hint files from different binaries overwriting each
+        other in multi-binary projects.
+
     Generate metadata for the specified ``binary`` or ``executable`` target and
     store it in the specified ``OUTPUT_FILE``. If no ``OUTPUT_FILE`` is
     provided, the default location ``<build>/project_description.json`` will be
@@ -741,7 +784,7 @@ endfunction()
 #]]
 function(idf_build_generate_metadata)
     set(options)
-    set(one_value OUTPUT_FILE BINARY EXECUTABLE)
+    set(one_value OUTPUT_FILE BINARY EXECUTABLE HINTS_OUTPUT_FILE)
     set(multi_value)
     cmake_parse_arguments(ARG "${options}" "${one_value}" "${multi_value}" ${ARGN})
 
@@ -830,11 +873,37 @@ function(idf_build_generate_metadata)
 
     get_filename_component(ARG_OUTPUT_FILE "${ARG_OUTPUT_FILE}" ABSOLUTE BASE_DIR "${BUILD_DIR}")
 
+    if(DEFINED ARG_HINTS_OUTPUT_FILE)
+        set(HINTS_FILE "${ARG_HINTS_OUTPUT_FILE}")
+    else()
+        set(HINTS_FILE "")
+    endif()
     configure_file("${IDF_PATH}/tools/cmake/project_description.json.in" "${ARG_OUTPUT_FILE}.templ")
     file(READ "${ARG_OUTPUT_FILE}.templ" project_description_json_templ)
     file(REMOVE "${ARG_OUTPUT_FILE}.templ")
     file(GENERATE OUTPUT "${ARG_OUTPUT_FILE}"
          CONTENT "${project_description_json_templ}")
+
+    # Assumption: all hints.yml files are bare YAML lists (no "---" document
+    # separators). Plain string concatenation is safe under this assumption.
+    # Note for consumers: yaml.safe_load() only parses the first YAML document,
+    # so document separators in source files would cause data loss.
+    if(DEFINED ARG_HINTS_OUTPUT_FILE)
+        set(_merged_hints "")
+        set(_global_hints_file "${IDF_PATH}/tools/idf_py_actions/hints.yml")
+        if(EXISTS "${_global_hints_file}")
+            file(READ "${_global_hints_file}" _hints_content)
+            string(APPEND _merged_hints "${_hints_content}\n")
+        endif()
+        foreach(_comp_dir ${build_component_paths})
+            set(_hints_file "${_comp_dir}/hints.yml")
+            if(EXISTS "${_hints_file}")
+                file(READ "${_hints_file}" _hints_content)
+                string(APPEND _merged_hints "${_hints_content}\n")
+            endif()
+        endforeach()
+        file(WRITE "${ARG_HINTS_OUTPUT_FILE}" "${_merged_hints}")
+    endif()
 endfunction()
 
 #[[

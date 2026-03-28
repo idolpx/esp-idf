@@ -408,6 +408,16 @@ An image is verified if the public key stored in any signature block is valid fo
     3. Use the public key to verify the signature of the bootloader image, using either RSA-PSS (section 8.1.2 of RFC8017) or ECDSA signature verification (section 5.3.3 of RFC6090) with the image digest calculated in step (2) for comparison.
 
 
+Verifying Data Partitions
+--------------------------
+
+The Secure Boot v2 signature verification can also verify data partition images during OTA updates. Enable :ref:`CONFIG_SECURE_SIGNED_DATA_PARTITION` to verify data partitions with subtype ``ESP_PARTITION_SUBTYPE_DATA_UNDEFINED``.
+
+Data partition images must be signed using ``idf.py secure-sign-data`` with the same signing key and follow the same format as application images. The verification uses the public key digest(s) stored in eFuse and follows the process described in :ref:`verify_image`.
+
+For detailed information including OTA procedures and partition configuration, see :ref:`secure-signed-data-partition`.
+
+
 Bootloader Size
 ---------------
 
@@ -521,7 +531,7 @@ Restrictions After Secure Boot Is Enabled
 
 .. only:: SOC_ECDSA_P192_CURVE_DEFAULT_DISABLED
 
-    When Secure Boot is enabled, the ECDSA curve mode becomes write-protected. This means that if the curve mode was not previously set to use the ECDSA-P192 key before enabling Secure Boot, it will no longer be possible to configure or use the ECDSA-P192 curve on the ECDSA peripheral afterward.
+    When Secure Boot is enabled, the ECDSA curve mode becomes write-protected. This means that if the curve mode was not previously set to use the ECDSA-P192 key before enabling Secure Boot, it will no longer be possible to configure or use the ECDSA-P192 curve on the ECDSA_DS peripheral afterward.
 
 Burning read-protected keys
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
