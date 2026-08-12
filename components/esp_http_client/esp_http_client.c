@@ -746,8 +746,6 @@ esp_err_t esp_http_client_prepare(esp_http_client_handle_t client)
 
     // Reset the response buffer before each new request to ensure raw_data == orig_raw_data.
     esp_http_client_cached_buf_cleanup(client->response->buffer);
-    // Also unconditionally reset raw_len.
-    client->response->buffer->raw_len = 0;
 
     /**
      * Clear location field before making a new HTTP request. Location
